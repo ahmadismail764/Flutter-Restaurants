@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException, status, Depends
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional, List
 from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker, Session, declarative_base
+import secrets
 
 # 1. Database Configuration
 SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
@@ -23,7 +23,6 @@ class UserDB(Base):
     level = Column(Integer, nullable=True)
 
 Base.metadata.create_all(bind=engine)
-
 # 3. Pydantic Models (Schemas)
 class UserCreate(BaseModel):
     name: str
@@ -43,8 +42,7 @@ class UserResponse(BaseModel):
     gender: Optional[str] = None
     level: Optional[int] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class Product(BaseModel):
     id: str
@@ -123,10 +121,11 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
+
 @app.post("/login", response_model=UserResponse)
 def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(UserDB).filter(UserDB.email == user.email).first()
-    if not db_user or db_user.password != user.password:
+    if not db_user or not secrets.compare_digest(db_user.password.encode('utf-8'), user.password.encode('utf-8')):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     return db_user
 
@@ -140,3 +139,7 @@ def get_products(restaurant_id: str):
         if r.id == restaurant_id:
             return r.products
     raise HTTPException(status_code=404, detail="Restaurant not found")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
