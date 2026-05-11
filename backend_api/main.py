@@ -2,8 +2,8 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional, List
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.orm import sessionmaker, Session, declarative_base
+from sqlalchemy import create_engine, Column, Integer, String, Float, Table, ForeignKey
+from sqlalchemy.orm import sessionmaker, Session, declarative_base, relationship
 import secrets
 
 # 1. Database Configuration
@@ -13,6 +13,13 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # 2. Database Models
+restaurant_product_association = Table(
+    'restaurant_product',
+    Base.metadata,
+    Column('restaurant_id', String, ForeignKey('restaurants.id'), primary_key=True),
+    Column('product_id', String, ForeignKey('products.id'), primary_key=True)
+)
+
 class UserDB(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -22,7 +29,25 @@ class UserDB(Base):
     gender = Column(String, nullable=True)
     level = Column(Integer, nullable=True)
 
+class ProductDB(Base):
+    __tablename__ = "products"
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, index=True)
+    imageUrl = Column(String)
+    price = Column(Float)
+
+class RestaurantDB(Base):
+    __tablename__ = "restaurants"
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, index=True)
+    address = Column(String)
+    latitude = Column(Float)
+    longitude = Column(Float)
+    imageUrl = Column(String)
+    products = relationship("ProductDB", secondary=restaurant_product_association)
+
 Base.metadata.create_all(bind=engine)
+
 # 3. Pydantic Models (Schemas)
 class UserCreate(BaseModel):
     name: str
@@ -50,6 +75,8 @@ class Product(BaseModel):
     imageUrl: str
     price: float
 
+    model_config = ConfigDict(from_attributes=True)
+
 class Restaurant(BaseModel):
     id: str
     name: str
@@ -58,6 +85,8 @@ class Restaurant(BaseModel):
     longitude: float
     imageUrl: str
     products: List[Product]
+
+    model_config = ConfigDict(from_attributes=True)
 
 # 4. FastAPI App Initialization
 app = FastAPI(title="Restaurant API")
@@ -69,30 +98,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 5. Mock Data for Restaurants and Products
-MOCK_PRODUCTS = [
-    Product(id="p1", name="Espresso", imageUrl="https://via.placeholder.com/150", price=2.50),
-    Product(id="p2", name="Latte", imageUrl="https://via.placeholder.com/150", price=3.50),
-    Product(id="p3", name="Croissant", imageUrl="https://via.placeholder.com/150", price=2.00),
-    Product(id="p4", name="Burger", imageUrl="https://via.placeholder.com/150", price=8.50),
-    Product(id="p5", name="Fries", imageUrl="https://via.placeholder.com/150", price=3.00),
-]
-
-MOCK_RESTAURANTS = [
-    Restaurant(
-        id="r1", name="Cafe Mocha", address="123 Coffee St", latitude=40.7128, longitude=-74.0060,
-        imageUrl="https://via.placeholder.com/300x150", products=[MOCK_PRODUCTS[0], MOCK_PRODUCTS[1], MOCK_PRODUCTS[2]]
-    ),
-    Restaurant(
-        id="r2", name="Burger Joint", address="456 Fast Food Ave", latitude=40.7138, longitude=-74.0070,
-        imageUrl="https://via.placeholder.com/300x150", products=[MOCK_PRODUCTS[3], MOCK_PRODUCTS[4]]
-    ),
-    Restaurant(
-        id="r3", name="Downtown Diner", address="789 Downtown Blvd", latitude=40.7118, longitude=-74.0050,
-        imageUrl="https://via.placeholder.com/300x150", products=[MOCK_PRODUCTS[0], MOCK_PRODUCTS[3], MOCK_PRODUCTS[4]]
-    ),
-]
 
 def get_db():
     db = SessionLocal()
@@ -130,15 +135,15 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     return db_user
 
 @app.get("/restaurants", response_model=List[Restaurant])
-def get_restaurants():
-    return MOCK_RESTAURANTS
+def get_restaurants(db: Session = Depends(get_db)):
+    return db.query(RestaurantDB).all()
 
 @app.get("/products/{restaurant_id}", response_model=List[Product])
-def get_products(restaurant_id: str):
-    for r in MOCK_RESTAURANTS:
-        if r.id == restaurant_id:
-            return r.products
-    raise HTTPException(status_code=404, detail="Restaurant not found")
+def get_products(restaurant_id: str, db: Session = Depends(get_db)):
+    restaurant = db.query(RestaurantDB).filter(RestaurantDB.id == restaurant_id).first()
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurant not found")
+    return restaurant.products
 
 if __name__ == "__main__":
     import uvicorn
