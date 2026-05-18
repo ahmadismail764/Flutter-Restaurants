@@ -83,7 +83,25 @@ class AuthBloc with Validators {
   }
 
   Future<void> submitSignup() async {
-    if (!_name.hasValue || !_email.hasValue || !_password.hasValue) return;
+    if (!_name.hasValue || !_email.hasValue || !_password.hasValue || !_confirmPassword.hasValue) {
+      _errorStatus.sink.add('Please fill all mandatory fields');
+      return;
+    }
+
+    final pass = _password.value;
+    final confPass = _confirmPassword.value;
+
+    // Strict Signup Validation: Block API call if constraints are not met
+    if (pass.length < 8) {
+      _errorStatus.sink.add('Password must be at least 8 characters');
+      return;
+    }
+    
+    if (pass != confPass) {
+      _errorStatus.sink.add('Passwords do not match');
+      return;
+    }
+
     _isLoading.sink.add(true);
     try {
       final user = await _apiService.signup(

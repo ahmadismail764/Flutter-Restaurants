@@ -6,7 +6,7 @@ import '../models/product.dart';
 import 'api_service.dart';
 
 class HttpApiService implements ApiService {
-  final String baseUrl = 'http://192.168.1.30:8000';
+  final String baseUrl = 'https://restaurantapifci.pythonanywhere.com';
 
   @override
   Future<User> login(String email, String password) async {
