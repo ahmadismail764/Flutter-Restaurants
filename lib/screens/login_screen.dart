@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
     
     // Listen to authentication status
     _authBloc.authStatus.listen((user) {
+      if (!mounted) return;
       // Navigate to Restaurant List Screen upon successful login
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const RestaurantListScreen()),
@@ -28,6 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
     
     // Listen to error status
     _authBloc.errorStatus.listen((error) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
     });
   }

@@ -18,6 +18,7 @@ class _SignupScreenState extends State<SignupScreen> {
     _authBloc = AuthBloc();
     
     _authBloc.authStatus.listen((user) {
+      if (!mounted) return;
       // Navigate to Restaurant List Screen upon successful signup
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const RestaurantListScreen()),
@@ -25,6 +26,7 @@ class _SignupScreenState extends State<SignupScreen> {
     });
     
     _authBloc.errorStatus.listen((error) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
     });
   }
